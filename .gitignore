@@ -1,0 +1,11 @@
+*.o
+erl_crash.dump
+ebin/
+log/
+test/app.config
+test/*.beam
+tmp
+priv/*.so
+doc/
+deps/
+

@@ -1,0 +1,15 @@
+{application, jb,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  lager,
+                  cowboy,
+                  espotify
+                 ]},
+  {mod, { jb_app, []}},
+  {env, []}
+ ]}.
