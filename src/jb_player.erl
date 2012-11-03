@@ -116,7 +116,7 @@ handle_info({'$spotify_callback', logged_in, R}, _StateName, State) ->
         {ok, User} ->
             lager:warning("User: ~p", [User]),
             State1 = State#state{spotify_user=User},
-            do_handle_next(State);
+            do_handle_next(State1);
         {error, E} ->
             lager:error("Error: ~p", [E]),
             espotify_api:stop(),
@@ -134,6 +134,9 @@ handle_info({'$spotify_callback', player_load, {ok, Track}}, loading, State) ->
                                       playhead_lastupdate=now_msec()}};
 
 handle_info({'$spotify_callback', player_play, end_of_track}, playing, State) ->
+    do_handle_next(State);
+
+handle_info(dbg_next, playing, State) ->
     do_handle_next(State);
 
 handle_info(_Info, _StateName, State) ->
@@ -159,19 +162,16 @@ do_try_login(State) ->
 
 do_handle_next(State) ->
     lager:info("next track"),
-    case State#state.current_track of
-        undefined -> nop;
-        _ -> espotify_api:player_unload()
-    end,
 
     {ok, Track} = jb_queue:pop(),
-    State1 = State#state{current_track=Track},
     case espotify_api:player_load(Track#sp_track.link) of
         ok ->
+            {ok, LoadedTrack} = espotify_api:player_current_track(),
             espotify_api:player_play(true),
-            {next_state, playing, State1};
+            lager:warning("playing"),
+            {next_state, playing, State#state{current_track=LoadedTrack}};
         loading ->
-            {next_state, loading, State1}
+            {next_state, loading, State#state{current_track=Track}}
     end.
 
 
