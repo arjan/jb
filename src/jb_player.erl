@@ -1,3 +1,7 @@
+%% @doc Player FSM.
+%%
+%%
+
 -module(jb_player).
 -behaviour(gen_fsm).
 -define(SERVER, ?MODULE).
@@ -7,7 +11,9 @@
 -record(state,
         {current_track = undefined :: undefined | #sp_track{},
          spotify_user = undefined :: undefined | #sp_user{},
-         playlist_container = undefined  :: undefined | #sp_playlistcontainer{}
+         playlist_container = undefined  :: undefined | #sp_playlistcontainer{},
+         playhead_offset = 0,
+         playhead_lastupdate = undefined
         }).
 
 %% ------------------------------------------------------------------
@@ -18,7 +24,9 @@
          start_link/0,
          next/0,
          stop/0,
-         toggle_pause/0
+         toggle_pause/0,
+         status/0,
+         seek/1
         ]).
 
 %% ------------------------------------------------------------------
@@ -48,8 +56,15 @@ next() ->
 stop() ->
     gen_fsm:send_all_state_event(?SERVER, stop).
 
+status() ->
+    gen_fsm:sync_send_all_state_event(?SERVER, status).
+    
 toggle_pause() ->
     gen_fsm:send_all_state_event(?SERVER, toggle_pause).
+
+seek(T) ->
+    gen_fsm:send_all_state_event(?SERVER, {seek, T}).
+    
 
 
 %% ------------------------------------------------------------------
@@ -64,24 +79,33 @@ unauthorized(timeout, State) ->
     {next_state, unauthorized, do_try_login(State)}.
 
 handle_event(next, _StateName, State) ->
-    {ok, Track} = jb_queue:pop(),
-    handle_load_and_play(Track, State);
+    do_handle_next(State);
 
 handle_event(toggle_pause, playing, State) ->
     espotify_api:player_play(false),
-    {next_state, paused, State};
+    {next_state, paused, State#state{playhead_offset=playhead_position(playing, State)}};
 
 handle_event(toggle_pause, paused, State) ->
     espotify_api:player_play(true),
-    {next_state, playing, State};
+    {next_state, playing, State#state{playhead_lastupdate=now_msec()}};
 
-handle_event(stop, S, State) when S =:= playing; S =:= paused->
+handle_event(stop, S, State) when S =:= playing; S =:= paused ->
     espotify_api:player_unload(),
     {next_state, stopped, State#state{current_track=undefined}};
+
+handle_event({seek, T}, S, State) when S =:= playing; S =:= paused ->
+    espotify_api:player_seek(T),
+    {next_state, S, State#state{playhead_offset=T, playhead_lastupdate=now_msec()}};
 
 handle_event(_Event, _StateName, State) ->
     lager:warning("<~p> Unhandled event: ~p", [_StateName, _Event]),
     {next_state, _StateName, State}.
+
+handle_sync_event(status, _From, StateName, State) ->
+    S = {StateName,
+         playhead_position(StateName, State),
+         State#state.current_track},
+    {reply, S, StateName, State};
 
 handle_sync_event(_Event, _From, _StateName, State) ->
     lager:warning("Unhandled sync event: ~p", [_Event]),
@@ -91,7 +115,8 @@ handle_info({'$spotify_callback', logged_in, R}, _StateName, State) ->
     case R of
         {ok, User} ->
             lager:warning("User: ~p", [User]),
-            {next_state, stopped, State#state{spotify_user=User}};
+            State1 = State#state{spotify_user=User},
+            do_handle_next(State);
         {error, E} ->
             lager:error("Error: ~p", [E]),
             espotify_api:stop(),
@@ -104,7 +129,12 @@ handle_info({'$spotify_callback', load_playlistcontainer, {ok, {undefined, PC}}}
 
 handle_info({'$spotify_callback', player_load, {ok, Track}}, loading, State) ->
     espotify_api:player_play(true),
-    {next_state, playing, State#state{current_track=Track}};
+    {next_state, playing, State#state{current_track=Track,
+                                      playhead_offset=0,
+                                      playhead_lastupdate=now_msec()}};
+
+handle_info({'$spotify_callback', player_play, end_of_track}, playing, State) ->
+    do_handle_next(State);
 
 handle_info(_Info, _StateName, State) ->
     lager:warning("<~p> Unhandled message: ~p", [_StateName, _Info]),
@@ -127,7 +157,14 @@ do_try_login(State) ->
     State.
 
 
-handle_load_and_play(Track, State) ->
+do_handle_next(State) ->
+    lager:info("next track"),
+    case State#state.current_track of
+        undefined -> nop;
+        _ -> espotify_api:player_unload()
+    end,
+
+    {ok, Track} = jb_queue:pop(),
     State1 = State#state{current_track=Track},
     case espotify_api:player_load(Track#sp_track.link) of
         ok ->
@@ -137,3 +174,15 @@ handle_load_and_play(Track, State) ->
             {next_state, loading, State1}
     end.
 
+
+now_msec() ->
+    {M,S,Micro} = erlang:now(),
+    M*1000000000 + S*1000 + Micro div 1000.
+
+playhead_position(playing, #state{playhead_offset=O, playhead_lastupdate=T}) ->
+    O + (now_msec() - T);
+playhead_position(paused, #state{playhead_offset=O}) ->
+    O;
+playhead_position(_, _) ->
+    0.
+    
