@@ -1,12 +1,11 @@
 %% @doc Player FSM.
 %%
-%%
 
 -module(jb_player).
 -behaviour(gen_fsm).
 -define(SERVER, ?MODULE).
 
--include_lib("deps/espotify/include/espotify.hrl").
+-include_lib("espotify/include/espotify.hrl").
 
 -record(state,
         {current_track = undefined :: undefined | #sp_track{},
@@ -124,21 +123,18 @@ handle_info({'$spotify_callback', logged_in, R}, _StateName, State) ->
     end;
              
 handle_info({'$spotify_callback', load_playlistcontainer, {ok, {undefined, PC}}}, StateName, State) ->
-    lager:warning("recv playlist"),
     {next_state, StateName, State#state{playlist_container=PC}};
 
 handle_info({'$spotify_callback', player_load, {ok, Track}}, loading, State) ->
-    espotify_api:player_play(true),
-    {next_state, playing, State#state{current_track=Track,
-                                      playhead_offset=0,
-                                      playhead_lastupdate=now_msec()}};
+    {next_state, playing, start_playing(Track, State)};
 
 handle_info({'$spotify_callback', player_play, end_of_track}, playing, State) ->
     do_handle_next(State);
 
-handle_info(dbg_next, playing, State) ->
-    do_handle_next(State);
-
+handle_info({'$spotify_callback', track_info, {ok, {_Ref, Track}}}, StateName, State) ->
+    jb_queue:track_loaded(Track),
+    {next_state, StateName, State};
+      
 handle_info(_Info, _StateName, State) ->
     lager:warning("<~p> Unhandled message: ~p", [_StateName, _Info]),
     {next_state, _StateName, State}.
@@ -168,10 +164,9 @@ do_handle_next(State) ->
         ok ->
             {ok, LoadedTrack} = espotify_api:player_current_track(),
             espotify_api:player_play(true),
-            lager:warning("playing"),
-            {next_state, playing, State#state{current_track=LoadedTrack}};
+            {next_state, playing, start_playing(LoadedTrack, State)};
         loading ->
-            {next_state, loading, State#state{current_track=Track}}
+            {next_state, loading, State}
     end.
 
 
@@ -186,3 +181,10 @@ playhead_position(paused, #state{playhead_offset=O}) ->
 playhead_position(_, _) ->
     0.
     
+
+start_playing(Track, State) ->
+    lager:info("Playing: ~s", [Track#sp_track.name]),
+    espotify_api:player_play(true),
+    State#state{current_track=Track,
+                playhead_offset=0,
+                playhead_lastupdate=now_msec()}.
