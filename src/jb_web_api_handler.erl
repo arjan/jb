@@ -10,6 +10,7 @@
          method_stop/2,
          method_toggle_pause/2,
          method_queue/2,
+         method_queue_add/2,
          method_status/2
         ]).
 
@@ -58,8 +59,18 @@ method_status(_, _) ->
     {ok, json_status()}.
 
 method_queue(_, _) ->
-    {error, not_implemented}.
+    {ok, Q} = jb_queue:get_queue(),
+    {ok, [record_to_json(sp_track, T) || T <- Q]}.
 
+method_queue_add(Req, _) ->
+    {L, _R} = cowboy_req:qs_val(<<"link">>, Req, <<>>),
+    case binary_to_list(L) of
+        "spotify:track:" ++ _ = Link ->
+            jb_queue:queue(Link),
+            {ok, ok};
+        _ ->
+            {error, invalid_link_argument}
+    end.
 
 json_status() ->
     {State, Position, Track0} = jb_player:status(),
