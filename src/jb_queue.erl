@@ -33,9 +33,7 @@ start_link() ->
 pop() ->
     gen_server:call(?SERVER, pop).
 
-queue("spotify:track:" ++ _ = Link) ->
-    queue(#sp_track{link=Link});
-queue(Track=#sp_track{}) ->
+queue(Track) ->    
     gen_server:call(?SERVER, {queue, Track}).
 
 track_loaded(Track=#sp_track{}) ->
@@ -98,7 +96,12 @@ do_pop([Track|Rest]) ->
     {{ok, Track}, Rest}.
 
 
-do_queue(Track, Queue) ->
+do_queue("spotify:album:" ++ _ = AlbumLink, Queue) ->
+    espotify_api:browse_album(AlbumLink),
+    Queue;
+do_queue("spotify:track:" ++ _ = Link, Queue) ->
+    do_queue(#sp_track{link=Link}, Queue);
+do_queue(Track=#sp_track{}, Queue) ->
     case Track#sp_track.is_loaded of
         false ->
             espotify_api:track_info(Track#sp_track.link);

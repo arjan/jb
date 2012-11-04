@@ -1,0 +1,10 @@
+#player .progress {
+    background: #eee;
+    cursor: pointer;
+}
+
+#player .progress div {
+    width: 10px;
+    height: 10px;
+    background: red;
+}

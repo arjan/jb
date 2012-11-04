@@ -1,0 +1,44 @@
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <link rel="stylesheet" href="/css/jb.css" />
+    </head>
+    
+    <body>
+
+        <div id="player">
+            <h1 class="track" data-bind="text: state().track ? state().track.name : '-'"></h1>
+            <p class="details">
+                <span data-bind="text: state().track ? state().track.artists[0].name : ''"></span>
+                —
+                <span data-bind="text: state().track ? state().track.album.name : ''"></span>
+            </p>
+
+            <p>
+                <span data-bind="text: state().track ? formatTime(state().track.duration) : ''" style="float: right"></span>
+                <span data-bind="text: formatTime(state().pos)"></span>
+            </p>
+            
+            <div class="progress" data-bind="click: seekEvent">
+                <div data-bind="style: {width: calculateProgressWidth()}"></div>
+            </div>
+
+            <p class="controls">
+                <button data-bind="click: togglePause, disable: state().status == 'stopped', text: state().status == 'paused' ? 'Play' : 'Pause'">Play</button>
+                <button data-bind="click: stop, disable: state().status == 'stopped'">Stop</button>
+                <button data-bind="click: next">Next</button>
+                <button data-bind="click: queueDialog">Add...</button>
+            </p>
+        </div>
+
+        <ul id="queue" data-bind="foreach: queue">
+            <li>
+                <b><span data-bind="text: $data.name" /></b>
+            </li>
+        </ul>
+        
+        <script data-main="js/main" src="/js/lib/require-jquery.js"></script>
+    </body>
+</html>
+
+
