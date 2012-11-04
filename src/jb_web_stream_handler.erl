@@ -22,6 +22,27 @@ websocket_init(_Atom, Req, _Opts) ->
 websocket_handle({text, <<"status">>}, Req, State) ->
     {reply, {text, jiffy:encode(jb_web:stream_event(status, jb_web:json_status()))}, Req, State};
 
+websocket_handle({text, Bin = <<"{", _/binary>>}, Req, State) ->
+    {Props} = jiffy:decode(Bin),
+    Method = proplists:get_value(<<"cmd">>, Props),
+    Data = case proplists:get_value(<<"data">>, Props, undefined) of
+               {D} -> D;
+               undefined -> []
+           end,
+    Fun = try
+              list_to_existing_atom("method_" ++ binary_to_list(Method))
+          catch
+              error:badarg ->
+                  unknown_method
+          end,
+    case jb_web_api_handler:Fun(Data, fun proplists:get_value/3) of
+        {ok, JSON} ->
+            Reply = {[{cmd, Method}, {reply, JSON}]},
+            {reply, {text, jiffy:encode(Reply)}, Req, State};
+        {error, Reason} ->
+            {reply, {text, jiffy:encode({[{cmd, Method}, {error, Reason}]})}, Req, State}
+    end;
+
 websocket_handle(Data, Req, State) ->
     lager:warning("Data: ~p", [Data]),
     {ok, Req, State}.

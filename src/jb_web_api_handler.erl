@@ -27,7 +27,7 @@ handle(Req, State) ->
                   unknown_method
           end,
     Headers = [{"Content-type", "application/json"}],
-    case ?MODULE:Fun(Req, State) of
+    case ?MODULE:Fun(Req, fun get_req/3) of
         {ok, JSON} ->
             {ok, Req3} = cowboy_req:reply(200, Headers, jiffy:encode({[{reply, JSON}]}), Req2),
             {ok, Req3, State};
@@ -62,14 +62,17 @@ method_status(_, _) ->
 method_queue(_, _) ->
     {ok, jb_web:json_queue()}.
 
-method_seek(Req, _) ->
-    {T, _R} = cowboy_req:qs_val(<<"t">>, Req, <<>>),
-    Pos = list_to_integer(binary_to_list(T)),
+method_seek(Req, Getter) ->
+    T = Getter(<<"t">>, Req, <<>>),
+    Pos = case is_integer(T) of
+              true -> T;
+              false -> list_to_integer(binary_to_list(T))
+          end,
     jb_player:seek(Pos),
     {ok, jb_web:json_status()}.
     
-method_queue_add(Req, _) ->
-    {L, _R} = cowboy_req:qs_val(<<"link">>, Req, <<>>),
+method_queue_add(Req, Getter) ->
+    L = Getter(<<"link">>, Req, <<>>),
     case binary_to_list(L) of
         "spotify:" ++ _ = Link ->
             jb_queue:queue(Link),
@@ -77,3 +80,7 @@ method_queue_add(Req, _) ->
         _ ->
             {error, invalid_link_argument}
     end.
+
+get_req(Key, Req, Default) ->
+    {Value, _R} = cowboy_req:qs_val(Key, Req, Default),
+    Value.
