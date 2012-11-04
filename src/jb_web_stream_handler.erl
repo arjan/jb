@@ -13,11 +13,14 @@ init({tcp, http}, _Req, _Opts) ->
 
 websocket_init(_Atom, Req, _Opts) ->
     gproc:reg({p, l, {?MODULE, client}}),
-    self() ! {stream, jb_web:json_status()},
+    %% Send initial play state
+    self() ! {stream, jb_web:stream_event(status, jb_web:json_status())},
+    %% Send the current play queue
+    self() ! {stream, jb_web:stream_event(queue, jb_web:json_queue())},
     {ok, Req, undefined_state}.
 
 websocket_handle({text, <<"status">>}, Req, State) ->
-    {reply, {text, jiffy:encode(jb_web:json_status())}, Req, State};
+    {reply, {text, jiffy:encode(jb_web:stream_event(status, jb_web:json_status()))}, Req, State};
 
 websocket_handle(Data, Req, State) ->
     lager:warning("Data: ~p", [Data]),

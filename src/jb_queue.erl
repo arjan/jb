@@ -51,10 +51,12 @@ init(_Args) ->
 
 handle_call(pop, _From, State) ->
     {Reply, Queue1} = do_pop(State#state.queue),
+    jb_web:stream_queue(Queue1),
     {reply, Reply, State#state{queue=Queue1}};
 
 handle_call({queue, Track}, _From, State=#state{queue=Q}) ->
     Queue1 = do_queue(Track, Q),
+    jb_web:stream_queue(Queue1),
     {reply, ok, State#state{queue=Queue1}};
     
 handle_call(get_queue, _From, State=#state{queue=Q}) ->
@@ -65,6 +67,7 @@ handle_call(_Request, _From, State) ->
 
 handle_cast({track_loaded, Track}, State) ->
     Queue1 = replace_loaded_track(Track, State#state.queue),
+    jb_web:stream_queue(Queue1),
     {noreply, State#state{queue=Queue1}};
 
 handle_cast(_Msg, State) ->

@@ -15,7 +15,15 @@ require(["jquery", "lib/knockout"], function($, ko) {
     };
     ws.onmessage = function(m) {
         var msg = JSON.parse(m.data);
-        self.state(msg);
+        if (msg.event == 'status') {
+            self.state(msg.data);
+        } else if (msg.event == 'queue') {
+            self.queue.removeAll();
+            self.queue(msg.data);
+        } else {
+            console.log('???');
+            console.log(msg);
+        }
     };
 
     setInterval(function() {
@@ -69,15 +77,6 @@ require(["jquery", "lib/knockout"], function($, ko) {
     self.seek = function(t) {
         api('seek', {t: t});
     };
-
-    self.refreshQueue = function() {
-        api('queue').then(function(r) {
-            self.queue.removeAll();
-            self.queue(r.reply);
-        });
-    };
-
-    self.refreshQueue();
 
     ko.cleanNode(document.body);
     ko.applyBindings(self, document.body);

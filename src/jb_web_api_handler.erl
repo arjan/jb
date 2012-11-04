@@ -60,8 +60,7 @@ method_status(_, _) ->
     {ok, jb_web:json_status()}.
 
 method_queue(_, _) ->
-    {ok, Q} = jb_queue:get_queue(),
-    {ok, [jb_web:record_to_json(sp_track, T) || T <- Q]}.
+    {ok, jb_web:json_queue()}.
 
 method_seek(Req, _) ->
     {T, _R} = cowboy_req:qs_val(<<"t">>, Req, <<>>),

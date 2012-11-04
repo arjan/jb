@@ -4,10 +4,16 @@
 
 -export([
          setup/0,
-         stream_all/1,
+
+         stream_event/2,
+         
          stream_status/1,
          json_status/0,
          json_status/1,
+
+         stream_queue/1,
+         json_queue/0,
+         json_queue/1,
          record_to_json/2
         ]).
 
@@ -32,13 +38,16 @@ setup() ->
         ],
 	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [{dispatch, Dispatch}]).
 
+stream_event(Event, JSON) ->
+    {[{event, Event}, {data, JSON}]}.
 
-stream_all(JSON) ->
+stream_all(Event, JSON) ->
+    Payload = stream_event(Event, JSON),
     Key = {jb_web_stream_handler, client},
-    gproc:send({p, l, Key}, {stream, JSON}).
+    gproc:send({p, l, Key}, {stream, Payload}).
 
 stream_status(Status) ->
-    stream_all(json_status(Status)).
+    stream_all(status, json_status(Status)).
 
 json_status() ->
     json_status(jb_player:status()).
@@ -54,6 +63,18 @@ json_status(Status) ->
     {[{status, State},
       {pos, Position},
       {track, Track}]}.
+
+
+
+stream_queue(Queue) ->
+    stream_all(queue, json_queue(Queue)).
+
+json_queue() ->
+    {ok, Q} = jb_queue:get_queue(),
+    json_queue(Q).
+
+json_queue(Queue) ->
+    [record_to_json(sp_track, Track) || Track <- Queue].
 
 
 record_to_json(RecordName, Record) ->
