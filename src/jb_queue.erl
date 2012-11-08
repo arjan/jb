@@ -88,8 +88,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 do_pop([]) ->
-    %% default song
-    {{ok, #sp_track{link="spotify:track:6JEK0CvvjDjjMUBFoXShNZ"}}, []};
+    {{ok, undefined}, []};
 
 %% only play songs that have been loaded.
 do_pop([#sp_track{is_loaded = false}|Rest]) ->

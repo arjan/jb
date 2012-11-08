@@ -181,16 +181,19 @@ do_try_login(State) ->
 
 
 do_handle_next(State) ->
-    lager:info("next track"),
-
-    {ok, Track} = jb_queue:pop(),
-    case espotify_api:player_load(Track#sp_track.link) of
-        ok ->
-            {ok, LoadedTrack} = espotify_api:player_current_track(),
-            espotify_api:player_play(true),
-            set_state_playing(LoadedTrack, State);
-        loading ->
-            {next_state, loading, State}
+    case jb_queue:pop() of
+        {ok, undefined} ->
+            %% stop
+            set_state_stopped(State);
+        {ok, Track} ->
+            case espotify_api:player_load(Track#sp_track.link) of
+                ok ->
+                    {ok, LoadedTrack} = espotify_api:player_current_track(),
+                    espotify_api:player_play(true),
+                    set_state_playing(LoadedTrack, State);
+                loading ->
+                    {next_state, loading, State}
+            end
     end.
 
 
