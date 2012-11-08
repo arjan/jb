@@ -5,8 +5,7 @@ require(["jquery", "lib/knockout"], function($, ko) {
     self.queue = ko.observableArray();
 
     function api(method, data) {
-        data = data || {};
-        return $.ajax({url: '/api/' + method, data: data});
+        ws.send(JSON.stringify({cmd: method, data: data}));
     }
     
     var ws = new WebSocket('ws://' + document.location.host + '/socket');
@@ -20,6 +19,8 @@ require(["jquery", "lib/knockout"], function($, ko) {
         } else if (msg.event == 'queue') {
             self.queue.removeAll();
             self.queue(msg.data);
+        } else if (typeof msg.cmd == 'string') {
+            // WS command reply, ignore
         } else {
             console.log('???');
             console.log(msg);
@@ -58,7 +59,7 @@ require(["jquery", "lib/knockout"], function($, ko) {
     self.queueDialog = function() {
         var link = self.prompt('Enter spotify URI');
         if (!link) return;
-        api('queue_add', {link: link}).then(self.refreshQueue);
+        api('queue_add', {link: link});
     };
     
     
@@ -71,7 +72,7 @@ require(["jquery", "lib/knockout"], function($, ko) {
     };
     
     self.next = function() {
-        api('next').then(self.refreshQueue);
+        api('next');
    };
 
     self.seek = function(t) {
